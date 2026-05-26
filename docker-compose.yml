@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # --- BASE DE DATOS CENTRALIZADA ---
+  postgres_db:
+    image: postgres:15-alpine
+    container_name: postgres_microservices
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: users_db  # Crea la primera base de datos automáticamente
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Este volumen crea la segunda base de datos de forma nativa al iniciar
+      - ./init-scripts:/docker-entrypoint-initdb.d
+
+  # --- MICROSERVICIO: USERS ---
+  users_service:
+    build: ./users_service
+    container_name: users_service_container
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres_db:5432/users_db
+    depends_on:
+      - postgres_db
+
+  # --- MICROSERVICIO: TASKS ---
+  tasks_service:
+    build: ./tasks_service
+    container_name: tasks_service_container
+    ports:
+      - "8002:8002"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres_db:5432/tasks_db
+    depends_on:
+      - postgres_db
+
+  # --- API GATEWAY ---
+  gateway:
+    build: ./gateway
+    container_name: gateway_container
+    ports:
+      - "8000:8000"
+    depends_on:
+      - users_service
+      - tasks_service
+
+volumes:
+  postgres_data:
